@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SQLite Quiz Database Setup</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 2rem;
+    background: #f0f4f8;
+    color: #333;
+  }
+  h1 {
+    color: #007acc;
+  }
+  pre {
+    background: #eee;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  button {
+    background-color: #007acc;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    margin-top: 1rem;
+  }
+  button:hover {
+    background-color: #005ea0;
+  }
+  #log {
+    margin-top: 1rem;
+    white-space: pre-wrap;
+    background: #fff;
+    padding: 1rem;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.05);
+    max-height: 300px;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+<h1>SQLite Quiz Database Setup Example</h1>
+<p>This demo sets up an in-memory SQLite database using <code>sql.js</code> WebAssembly library.</p>
+<p>It creates tables for <strong>users</strong>, <strong>questions</strong>, and <strong>scores</strong>, and inserts sample data.</p>
+<button id="setup-db-btn">Create Database & Tables & Insert Sample Data</button>
+
+<div id="log"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+  const logElem = document.getElementById('log');
+  function log(message) {
+    logElem.textContent += message + '\\n';
+    logElem.scrollTop = logElem.scrollHeight;
+  }
+
+  document.getElementById('setup-db-btn').addEventListener('click', async () => {
+    log('Loading SQLite...');
+    // Load the SQL.js and initialize database
+    const SQL = await initSqlJs({
+      locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+    });
+    log('SQLite loaded.');
+
+    // Create a new database in memory
+    const db = new SQL.Database();
+    log('Database created in memory.');
+
+    // Define schema for users, questions, and scores
+    const schemaSQL = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question_text TEXT NOT NULL,
+      choice1 TEXT,
+      choice2 TEXT,
+      choice3 TEXT,
+      choice4 TEXT,
+      correct_choice INTEGER NOT NULL, -- 1 to 4
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS scores (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      taken_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+    `;
+
+    // Execute schema creation
+    db.run(schemaSQL);
+    log('Tables: users, questions, scores created.');
+
+    // Insert sample user
+    const insertUserSQL = `
+      INSERT INTO users (username, email) VALUES 
+      ('testuser', 'testuser@example.com');
+    `;
+    db.run(insertUserSQL);
+    log('Sample user inserted.');
+
+    // Insert sample questions
+    const insertQuestionsSQL = `
+      INSERT INTO questions (question_text, choice1, choice2, choice3, choice4, correct_choice) VALUES
+      ('What is the capital of France?', 'Berlin', 'London', 'Paris', 'Rome', 3),
+      ('Which planet is known as the Red Planet?', 'Earth', 'Mars', 'Jupiter', 'Saturn', 2),
+      ('What is 2 + 2?', '3', '4', '5', '6', 2);
+    `;
+    db.run(insertQuestionsSQL);
+    log('Sample questions inserted.');
+
+    // Insert sample score
+    // Get user_id from inserted user
+    const res = db.exec("SELECT id FROM users WHERE username = 'testuser';");
+    let userId = null;
+    if (res.length && res[0].values.length) {
+      userId = res[0].values[0][0];
+      // Insert score for this user
+      const insertScoreStmt = db.prepare('INSERT INTO scores (user_id, score) VALUES (?, ?)');
+      insertScoreStmt.run([userId, 85]);
+      insertScoreStmt.free();
+      log('Sample score inserted for user id ' + userId + '.');
+    } else {
+      log('Failed to find sample user id for score insertion.');
+    }
+
+    // Query all tables to verify
+    function printTable(name) {
+      const result = db.exec(`SELECT * FROM ${name};`);
+      if (result.length > 0) {
+        log('Table ' + name + ':');
+        const columns = result[0].columns;
+        const values = result[0].values;
+        // Format table output
+        let output = columns.join(' | ') + '\\n';
+        output += values.map(row => row.join(' | ')).join('\\n');
+        log(output);
+      } else {
+        log(`Table ${name} is empty.`);
+      }
+    }
+
+    printTable('users');
+    printTable('questions');
+    printTable('scores');
+
+    log('Database setup complete.');
+  });
+</script>
+</body>
+</html>
+
