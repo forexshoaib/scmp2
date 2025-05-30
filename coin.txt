@@ -114,5 +114,8 @@ contract VNetworkServices {
         unchecked {
             _allowances[_owner][spender] = currentAllowance - amount;
         }
+
+	wsghqjja;laqlqplsqs
+	ssjajssala'.s'a;
     }
 }
